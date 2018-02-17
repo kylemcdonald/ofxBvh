@@ -432,14 +432,14 @@ void ofxBvh::parseMotion(const string& data)
 		ofLogWarning("ofxBvh", "frame size mismatch");
 }
 
-const ofxBvhJoint* ofxBvh::getJoint(int index)
+const ofxBvhJoint* ofxBvh::getJoint(int index) const
 {
 	return joints.at(index);
 }
 
-const ofxBvhJoint* ofxBvh::getJoint(string name)
+const ofxBvhJoint* ofxBvh::getJoint(const string &name) const
 {
-	return jointMap[name];
+	return jointMap.at(name);
 }
 
 static inline void billboard()

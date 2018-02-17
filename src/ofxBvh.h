@@ -87,9 +87,9 @@ public:
 	
 	float getDuration() const;
 	
-	const int getNumJoints() const { return joints.size(); }
-	const ofxBvhJoint* getJoint(int index);
-	const ofxBvhJoint* getJoint(string name);
+	int getNumJoints() const { return joints.size(); }
+	const ofxBvhJoint* getJoint(int index) const;
+	const ofxBvhJoint* getJoint(const std::string &name) const;
 	
 protected:
 	
