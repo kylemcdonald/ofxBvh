@@ -1,4 +1,5 @@
 #include "ofxBvh.h"
+#include "ofMain.h"
 
 static inline void billboard();
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ofMain.h"
+#include "ofVectorMath.h"
 
 class ofxBvh;
 
@@ -16,9 +16,9 @@ public:
 		X_POSITION, Y_POSITION, Z_POSITION
 	};
 	
-	ofxBvhJoint(string name, ofxBvhJoint *parent) : name(name),  parent(parent) {}
+    ofxBvhJoint(std::string name, ofxBvhJoint *parent) : name(name),  parent(parent) {}
 	
-	inline const string& getName() const { return name; }
+	inline const std::string& getName() const { return name; }
 	inline const ofVec3f& getOffset() const { return offset; }
 	
 	inline const ofMatrix4x4& getMatrix() const { return matrix; }
@@ -28,7 +28,7 @@ public:
 	inline ofQuaternion getRotate() const { return global_matrix.getRotate(); }
 	
 	inline ofxBvhJoint* getParent() const { return parent; }
-	inline const vector<ofxBvhJoint*>& getChildren() const { return children; }
+	inline const std::vector<ofxBvhJoint*>& getChildren() const { return children; }
 
 	inline bool isSite() const { return children.empty(); }
 	inline bool isRoot() const { return !parent; }
@@ -37,7 +37,7 @@ public:
 	
 protected:
 
-	string name;
+	std::string name;
 	ofVec3f initial_offset;
 	ofVec3f offset;
 	
@@ -46,10 +46,10 @@ protected:
 	
 	ofxBvh* bvh;
 	
-	vector<ofxBvhJoint*> children;
+	std::vector<ofxBvhJoint*> children;
 	ofxBvhJoint* parent;
 	
-	vector<CHANNEL> channel_type;
+	std::vector<CHANNEL> channel_type;
 };
 
 class ofxBvh
@@ -61,7 +61,7 @@ public:
 	
 	virtual ~ofxBvh();
 	
-	void load(string path);
+	void load(std::string path);
 	void unload();
 
 	void update();
@@ -93,15 +93,15 @@ public:
 	
 protected:
 	
-	typedef vector<float> FrameData;
+	typedef std::vector<float> FrameData;
 	
 	int total_channels;
 	
 	ofxBvhJoint* root;
-	vector<ofxBvhJoint*> joints;
-	map<string, ofxBvhJoint*> jointMap;
+	std::vector<ofxBvhJoint*> joints;
+	std::map<string, ofxBvhJoint*> jointMap;
 	
-	vector<FrameData> frames;
+	std::vector<FrameData> frames;
 	FrameData currentFrame;
 	
 	int num_frames;
@@ -116,10 +116,10 @@ protected:
 	bool need_update;
 	bool frame_new;
 	
-	void parseHierarchy(const string& data);
-	ofxBvhJoint* parseJoint(int& index, vector<string> &tokens, ofxBvhJoint *parent);
+	void parseHierarchy(const std::string& data);
+	ofxBvhJoint* parseJoint(int& index, std::vector<string> &tokens, ofxBvhJoint *parent);
 	void updateJoint(int& index, const FrameData& frame_data, ofxBvhJoint *joint);
 	
-	void parseMotion(const string& data);
+	void parseMotion(const std::string& data);
 	
 };
