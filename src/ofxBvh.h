@@ -67,25 +67,25 @@ public:
 	void update();
 	void draw();
 	
-	bool isFrameNew();
+	bool isFrameNew() const;
 	
 	void play();
 	void stop();
-	bool isPlaying();
+	bool isPlaying() const;
 	
 	void setLoop(bool yn);
-	bool isLoop();
+	bool isLoop() const;
 	
 	void setRate(float rate);
 
 	void setFrame(int index);
-	int getFrame();
-    const int getNumFrames();
+	int getFrame() const;
+    int getNumFrames() const;
 	
 	void setPosition(float pos);
-	float getPosition();
+	float getPosition() const;
 	
-	float getDuration();
+	float getDuration() const;
 	
 	const int getNumJoints() const { return joints.size(); }
 	const ofxBvhJoint* getJoint(int index);

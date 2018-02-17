@@ -67,7 +67,7 @@ void ofxBvh::stop()
 	playing = false;
 }
 
-bool ofxBvh::isPlaying()
+bool ofxBvh::isPlaying() const
 {
 	return playing;
 }
@@ -77,7 +77,7 @@ void ofxBvh::setLoop(bool yn)
 	loop = yn;
 }
 
-bool ofxBvh::isLoop() { return loop; }
+bool ofxBvh::isLoop() const { return loop; }
 
 void ofxBvh::setRate(float rate)
 {
@@ -210,7 +210,7 @@ void ofxBvh::draw()
 	ofPopStyle();
 }
 
-bool ofxBvh::isFrameNew()
+bool ofxBvh::isFrameNew() const
 {
 	return frame_new;
 }
@@ -226,12 +226,12 @@ void ofxBvh::setFrame(int index)
 	}
 }
 
-int ofxBvh::getFrame()
+int ofxBvh::getFrame() const
 {
 	return floor(play_head / frame_time);
 }
 
-const int ofxBvh::getNumFrames()
+int ofxBvh::getNumFrames() const
 {
     return num_frames;
 }
@@ -241,12 +241,12 @@ void ofxBvh::setPosition(float pos)
 	setFrame((float)frames.size() * pos);
 }
 
-float ofxBvh::getPosition()
+float ofxBvh::getPosition() const
 {
 	return play_head / (float)frames.size();
 }
 
-float ofxBvh::getDuration()
+float ofxBvh::getDuration() const
 {
 	return (float)frames.size() * frame_time;
 }
