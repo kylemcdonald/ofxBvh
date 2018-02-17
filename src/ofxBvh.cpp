@@ -156,6 +156,7 @@ void ofxBvh::update()
 				play_head = 0;
             
             index = getFrame();
+            if(index >= frames.size()) index = frames.size() - 1; // index is larger than frames.size() when loop == false and index >= frames.size()
             currentFrame = frames[index];
 
 		}
