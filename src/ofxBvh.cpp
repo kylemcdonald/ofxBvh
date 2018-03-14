@@ -409,9 +409,9 @@ void ofxBvh::parseMotion(const string& data)
         string line = lines[index];
         vector<string> channels = ofSplitString(line, " ");
         
-        if (channels.size() != total_channels)
+        if (total_channels != channels.size())
         {
-            ofLogError("ofxBvh", "channel size mismatch");
+            ofLogWarning("ofxBvh") << "channel size mismatch: metadata says " << total_channels << ", but found " << channels.size();
             return;
         }
         
@@ -430,7 +430,7 @@ void ofxBvh::parseMotion(const string& data)
     }
     
     if (num_frames != frames.size())
-        ofLogWarning("ofxBvh", "frame size mismatch");
+        ofLogWarning("ofxBvh") << "frame size mismatch: metadata says " << num_frames << ", but found " << frames.size();
 }
 
 const ofxBvhJoint* ofxBvh::getJoint(int index) const

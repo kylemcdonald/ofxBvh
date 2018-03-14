@@ -25,6 +25,9 @@ public:
     inline const ofMatrix4x4& getMatrix() const { return matrix; }
     inline const ofMatrix4x4& getGlobalMatrix() const { return global_matrix; }
     
+    inline ofVec3f getPositionLocal() const { return matrix.getTranslation(); }
+    inline ofQuaternion getRotateLocal() const { return matrix.getRotate(); }
+    
     inline ofVec3f getPosition() const { return global_matrix.getTranslation(); }
     inline ofQuaternion getRotate() const { return global_matrix.getRotate(); }
     
