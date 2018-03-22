@@ -109,8 +109,6 @@ void ofxBvh::updateJoint(int& index, const FrameData& frame_data, ofxBvhJoint *j
             rotate = ofQuaternion(v, ofVec3f(0, 0, 1)) * rotate;
     }
     
-    translate += joint->initial_offset;
-    
     joint->matrix.makeIdentityMatrix();
     joint->matrix.glTranslate(translate);
     joint->matrix.glRotate(rotate);
