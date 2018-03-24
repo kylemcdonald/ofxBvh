@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ofVectorMath.h"
+#include <map>
 
 class ofxBvhJoint {
     friend class ofxBvh;
@@ -8,21 +9,21 @@ class ofxBvhJoint {
 private:
     int channels = 0;
     std::string rotationOrder;
+    ofxBvhJoint* parent = nullptr;
+    std::vector<std::shared_ptr<ofxBvhJoint>> children;
     
     void dumpHierarchy(std::ostream& output, std::string tabs="");
     void updateHierarchy(std::vector<double>::const_iterator& frame, glm::mat4 global=glm::mat4());
     void readHierarchy(std::vector<double>::iterator& frame);
     void drawHierarchy(bool drawNames=false);
-    unsigned int countJoints();
-    ofxBvhJoint* getJoint(int target, int& counter);
-    ofxBvhJoint* getJoint(const std::string& target);
     
 public:
     std::string name;
     glm::vec3 offset;
     glm::mat4 localMat, globalMat;
-    ofxBvhJoint* parent = nullptr;
-    std::vector<std::shared_ptr<ofxBvhJoint>> children;
+    
+    inline ofxBvhJoint* getParent() const { return parent; }
+    inline const std::vector<std::shared_ptr<ofxBvhJoint>>& getChildren() const { return children; }
     
     inline bool isSite() const { return children.empty(); }
     inline bool isRoot() const { return !parent; }
@@ -31,8 +32,9 @@ public:
 class ofxBvh {
 private:
     std::shared_ptr<ofxBvhJoint> root;
+    std::vector<ofxBvhJoint*> joints;
+    std::map<std::string, ofxBvhJoint*> jointMap;
     double frameTime = 0;
-    unsigned int numJoints = 0;
     std::vector<std::vector<double>> motion;
     
     float playRate = 1;
@@ -55,8 +57,7 @@ public:
     void draw(bool drawNames=false) const;
     std::string info() const;
     
-    unsigned int getNumJoints() const;
-    ofxBvhJoint* getJoint(int index);
+    const std::vector<ofxBvhJoint*>& getJoints() const;
     ofxBvhJoint* getJoint(const std::string& name);
     
     void play();

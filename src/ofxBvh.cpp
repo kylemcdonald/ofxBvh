@@ -126,17 +126,6 @@ void ofxBvhJoint::readHierarchy(std::vector<double>::iterator& frame) {
     }
 }
 
-unsigned int ofxBvhJoint::countJoints() {
-    if (isSite()) {
-        return 1;
-    }
-    unsigned int total = 0;
-    for (auto& child : children) {
-        total += child->countJoints();
-    }
-    return total;
-}
-
 void ofxBvhJoint::drawHierarchy(bool drawNames) {
     ofSetColor(ofColor::white);
     ofDrawLine(glm::vec3(), offset);
@@ -162,33 +151,6 @@ void ofxBvhJoint::drawHierarchy(bool drawNames) {
     ofPopMatrix();
 }
 
-ofxBvhJoint* ofxBvhJoint::getJoint(int target, int& counter) {
-    if (counter == target) {
-        return this;
-    }
-    counter++;
-    for (auto& child : children) {
-        ofxBvhJoint* result = child->getJoint(target, counter);
-        if (result != nullptr) {
-            return result;
-        }
-    }
-    return nullptr;
-}
-
-ofxBvhJoint* ofxBvhJoint::getJoint(const std::string& target) {
-    if (name == target) {
-        return this;
-    }
-    for (auto& child : children) {
-        ofxBvhJoint* result = child->getJoint(target);
-        if (result != nullptr) {
-            return result;
-        }
-    }
-    return nullptr;
-}
-
 void ofxBvh::dumpMotion(ostream& output, float frameTime, const vector<vector<double>>& motion) {
     output << "MOTION" << endl;
     output << "Frames:\t" << motion.size() << endl;
@@ -206,7 +168,6 @@ void ofxBvh::load(string filename) {
     
     // reset variables
     ofxBvhJoint* cur = nullptr;
-    numJoints = 0;
     playRate = 1;
     startTime = 0;
     startFrame = 0;
@@ -226,12 +187,15 @@ void ofxBvh::load(string filename) {
             if (cur != nullptr) {
                 cur->children.emplace_back(child);
                 child->parent = cur;
-                numJoints++;
             }
             cur = child;
             ifs.ignore(); // skip " "
             getline(ifs, cur->name);
             cur->name = strip(cur->name);
+            joints.push_back(cur);
+            if (s != "End") {
+                jointMap[cur->name] = cur;
+            }
             ifs >> s; // skip "{"
         } else if (s == "}") {
             if (!cur->isRoot()) {
@@ -354,17 +318,12 @@ string ofxBvh::info() const {
     return ss.str();
 }
 
-unsigned int ofxBvh::getNumJoints() const {
-    return numJoints;
-}
-
-ofxBvhJoint* ofxBvh::getJoint(int index) {
-    int counter = 0;
-    return root->getJoint(index, counter);
+const vector<ofxBvhJoint*>& ofxBvh::getJoints() const {
+    return joints;
 }
 
 ofxBvhJoint* ofxBvh::getJoint(const std::string& name) {
-    return root->getJoint(name);
+    return jointMap[name];
 }
 
 void ofxBvh::play() {

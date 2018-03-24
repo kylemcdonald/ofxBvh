@@ -49,10 +49,10 @@ public:
             b.draw();
             
             // select joints by index
-            int n = b.getNumJoints();
+            int n = b.getJoints().size();
             for(int i = 0; i < n; i+=5) {
                 ofPushMatrix();
-                ofMultMatrix(b.getJoint(i)->globalMat);
+                ofMultMatrix(b.getJoints()[i]->globalMat);
                 ofDrawBitmapString(ofToString(i), 0, 0);
                 ofPopMatrix();
             }
@@ -60,10 +60,10 @@ public:
             // select joints by name
             ofxBvhJoint* head = b.getJoint("Head");
             if (head != nullptr) {
-                head = head->children[0].get();
+                head = head->getChildren()[0].get();
                 ofPushMatrix();
                 ofMultMatrix(head->globalMat);
-                ofDrawBitmapString("Head", 0, 0);
+                ofDrawBitmapString("Head", 10, 0);
                 ofPopMatrix();
             }
             
