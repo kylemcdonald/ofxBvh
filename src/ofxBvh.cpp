@@ -382,7 +382,11 @@ float ofxBvh::getPosition() const {
     return float(frameNumber) / getNumFrames();
 }
 void ofxBvh::setFrame(unsigned int frameNumber) {
-    frameNumber %= getNumFrames();
+    if (loop) {
+        frameNumber %= getNumFrames();
+    } else {
+        frameNumber = std::min(frameNumber, getNumFrames()-1);
+    }
     startTime = ofGetElapsedTimef();
     this->frameNumber = frameNumber;
     startFrame = frameNumber;
