@@ -82,9 +82,9 @@ void ofxBvhJoint::drawHierarchy(bool drawNames) {
 }
 
 void ofxBvhJoint::updateRaw(vector<double>::const_iterator& frame) {
-    raw.clear();
+    raw.resize(channels);
     for (int channel = 0; channel < channels; channel++) {
-        raw.push_back(*frame++);
+        raw[channel] = *frame++;
     }
     for (auto child : children) {
         child->updateRaw(frame);
