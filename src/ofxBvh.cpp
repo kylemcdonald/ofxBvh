@@ -1,472 +1,462 @@
 #include "ofxBvh.h"
 #include "ofMain.h"
+#include "euler.h"
 
-static inline void billboard();
+using namespace std;
 
-ofxBvh::~ofxBvh()
-{
-    unload();
+glm::vec3 matToEuler(glm::mat4 matrix, int order) {
+    HMatrix hm;
+    for(int i = 0; i < 4; i++) {
+        for(int j = 0; j < 4; j++) {
+            hm[i][j] = matrix[j][i];
+        }
+    }
+    EulerAngles result = Eul_FromHMatrix(hm, order);
+    glm::vec3 euler;
+    euler[EulAxI(order)] = result.x;
+    euler[EulAxJ(order)] = result.y;
+    euler[EulAxK(order)] = result.z;
+    return euler;
 }
 
-void ofxBvh::load(string path)
-{
-    path = ofToDataPath(path);
+// strip \r or \n from the end of a string
+string strip(const string& s) {
+    if (s.empty()) return s;
+    int i = s.size() - 1;
+    while (s[i] == '\r' || s[i] == '\n') i--;
+    return s.substr(0, i + 1);
+}
+
+void ofxBvhJoint::dumpHierarchy(ostream& output, string tabs) {
+    string token;
+    if (isRoot()) {
+        output << "HIERARCHY" << endl;
+        token = "ROOT";
+    } else {
+        token = isSite() ? "End" : "JOINT";
+    }
+    output << tabs << token << " " << name << endl;
+    output << tabs << "{" << endl;
+    string indented = tabs + "  "; // use two spaces for tabs
+    glm::vec3& p = offset;
+    output << indented << "OFFSET " << p.x << " " << p.y << " " << p.z << endl;
+    if (!isSite()) {
+        output << indented << "CHANNELS " << channels;
+        if (channels == 6) {
+            output << " Xposition Yposition Zposition";
+        }
+        for (char axis : rotationOrder) {
+            output << " " << axis << "rotation";
+        }
+        output << endl;
+    }
+    for (auto child : children) {
+        child->dumpHierarchy(output, indented);
+    }
+    output << tabs << "}" << endl;
+}
+
+void ofxBvhJoint::updateHierarchy(vector<double>::const_iterator& frame, glm::mat4 global) {
+    glm::mat4 local;
     
-    string data = ofBufferFromFile(path).getText();
+    if (isSite()) {
+        local = glm::translate(local, offset);
+    } else {
+        if (channels == 6) {
+            glm::vec3 p;
+            p.x = *frame++;
+            p.y = *frame++;
+            p.z = *frame++;
+            local = glm::translate(local, p);
+        } else {
+            local = glm::translate(local, offset);
+        }
+        
+        for (char axis : rotationOrder) {
+            float angle = glm::radians(*frame++);
+            switch(axis) {
+                case 'X': local *= glm::eulerAngleX(angle); break;
+                case 'Y': local *= glm::eulerAngleY(angle); break;
+                case 'Z': local *= glm::eulerAngleZ(angle); break;
+            }
+        }
+    }
     
-    const size_t HIERARCHY_BEGIN = data.find("HIERARCHY", 0);
-    const size_t MOTION_BEGIN = data.find("MOTION", 0);
+    global *= local;
+    localMat = local;
+    globalMat = global;
     
-    if (HIERARCHY_BEGIN == string::npos
-        || MOTION_BEGIN == string::npos)
-    {
-        ofLogError("ofxBvh", "invalid bvh format");
+    for (auto child : children) {
+        child->updateHierarchy(frame, global);
+    }
+}
+
+void ofxBvhJoint::readHierarchy(std::vector<double>::iterator& frame) {
+    if (!isSite()) {
+        if (channels == 6) {
+            glm::vec3 translation = glm::vec3(localMat[3]);
+            *frame++ = translation.x;
+            *frame++ = translation.y;
+            *frame++ = translation.z;
+        }
+        
+        string order = rotationOrder;
+        int orderType;
+        // the EulOrd is "backwards" from the order rotations are applied
+        if (order == "YXZ") orderType = EulOrdZXYs;
+        else if (order == "ZXY") orderType = EulOrdYXZs;
+        else {
+            cout << "rotation order '" << order << "' untested, please add it" << endl;
+            return;
+        }
+        glm::vec3 euler = matToEuler(localMat, orderType);
+        for (char axis : order) {
+            float angle;
+            switch(axis) {
+                case 'X': angle = euler.x; break;
+                case 'Y': angle = euler.y; break;
+                case 'Z': angle = euler.z; break;
+            }
+            *frame++ = glm::degrees(angle);
+        }
+    }
+    
+    for (auto child : children) {
+        child->readHierarchy(frame);
+    }
+}
+
+unsigned int ofxBvhJoint::countJoints() {
+    if (isSite()) {
+        return 1;
+    }
+    unsigned int total = 0;
+    for (auto& child : children) {
+        total += child->countJoints();
+    }
+    return total;
+}
+
+void ofxBvhJoint::drawHierarchy(bool drawNames) {
+    ofSetColor(ofColor::white);
+    ofDrawLine(glm::vec3(), offset);
+    
+    ofPushMatrix();
+    ofMultMatrix(localMat);
+    
+    if (isSite()) {
+        ofSetColor(ofColor::yellow);
+        ofDrawBox(0, 0, 0, 2, 2, 2);
+    } else {
+        ofSetColor(ofColor::white);
+        ofDrawBox(0, 0, 0, 4, 4, 4);
+        if (drawNames) {
+            ofDrawBitmapString(name, 0, 0);
+        }
+    }
+    
+    for (auto child : children) {
+        child->drawHierarchy(drawNames);
+    }
+    
+    ofPopMatrix();
+}
+
+ofxBvhJoint* ofxBvhJoint::getJoint(int target, int& counter) {
+    if (counter == target) {
+        return this;
+    }
+    counter++;
+    for (auto& child : children) {
+        ofxBvhJoint* result = child->getJoint(target, counter);
+        if (result != nullptr) {
+            return result;
+        }
+    }
+    return nullptr;
+}
+
+ofxBvhJoint* ofxBvhJoint::getJoint(const std::string& target) {
+    if (name == target) {
+        return this;
+    }
+    for (auto& child : children) {
+        ofxBvhJoint* result = child->getJoint(target);
+        if (result != nullptr) {
+            return result;
+        }
+    }
+    return nullptr;
+}
+
+void ofxBvh::dumpMotion(ostream& output, float frameTime, const vector<vector<double>>& motion) {
+    output << "MOTION" << endl;
+    output << "Frames:\t" << motion.size() << endl;
+    output << "Frame Time:\t" << frameTime << endl;
+    for (auto& frame : motion) {
+        for (auto& channel : frame) {
+            output << channel << " ";
+        }
+        output << endl;
+    }
+}
+
+void ofxBvh::load(string filename) {
+    string path = ofToDataPath(filename);
+    
+    // reset variables
+    ofxBvhJoint* cur = nullptr;
+    numJoints = 0;
+    playRate = 1;
+    startTime = 0;
+    startFrame = 0;
+    frameNumber = 0;
+    playing = false;
+    loop = true;
+    frameNew = false;
+    
+    ifstream ifs(path);
+    string s;
+    ifs >> s; // skip "HIERARCHY"
+    int channels = 0;
+    while(true) {
+        ifs >> s;
+        if (s == "ROOT" || s == "JOINT" || s == "End") {
+            ofxBvhJoint* child = new ofxBvhJoint();
+            if (cur != nullptr) {
+                cur->children.emplace_back(child);
+                child->parent = cur;
+                numJoints++;
+            }
+            cur = child;
+            ifs.ignore(); // skip " "
+            getline(ifs, cur->name);
+            cur->name = strip(cur->name);
+            ifs >> s; // skip "{"
+        } else if (s == "}") {
+            if (!cur->isRoot()) {
+                cur = cur->parent;
+            }
+        } else if (s == "OFFSET") {
+            glm::vec3& p = cur->offset;
+            ifs >> p.x >> p.y >> p.z;
+        } else if (s == "CHANNELS") {
+            int& n = cur->channels;
+            ifs >> n;
+            channels += n;
+            ifs.ignore(); // skip " "
+            vector<string> tokens;
+            for (int i = 0; i < n; i++) {
+                ifs >> s;
+                tokens.push_back(s);
+            }
+            string& order = cur->rotationOrder;
+            order += tokens[n-3][0];
+            order += tokens[n-2][0];
+            order += tokens[n-1][0];
+        } else if (s == "MOTION") {
+            break;
+        } else {
+            cout << "Unknown token: " << s << endl;
+            return;
+        }
+    }
+    
+    root = shared_ptr<ofxBvhJoint>(cur);
+    
+    char c;
+    int frames;
+    ifs >> s >> frames; // skip "Frames:"
+    ifs >> s >> c >> s >> frameTime; // skip "Frame Time:"
+    getline(ifs, s); // finish off line?
+    
+    // getline + strtod is 3x faster than ifs
+    motion = vector<vector<double>>(frames, vector<double>(channels));
+    for (auto& frame : motion) {
+        getline(ifs, s);
+        const char* sc = s.c_str();
+        char* end;
+        for (auto& channel : frame) {
+            channel = strtod(sc, &end);
+            sc = end;
+        }
+    }
+    ifs.close();
+}
+
+void ofxBvh::save(string filename) const {
+    string path = ofToDataPath(filename);
+    ofstream ofs(path);
+    root->dumpHierarchy(ofs);
+    dumpMotion(ofs, frameTime, motion);
+    ofs.close();
+}
+
+void ofxBvh::update() {
+    if (motion.empty()) {
+        cout << "No motion to update." << endl;
+        return;
+    }
+    // update the time
+    bool previousFrameNumber = frameNumber;
+    if (playing) {
+        float elapsed = ofGetElapsedTimef() - startTime;
+        int progress = elapsed * getFrameRate() * playRate;
+        frameNumber = startFrame + progress;
+        if (loop) {
+            frameNumber %= getNumFrames();
+        } else {
+            frameNumber = std::min(frameNumber, getNumFrames()-1);
+        }
+    }
+    frameNew = previousFrameNumber != frameNumber;
+    
+    // update the hierarchy
+    vector<double>::const_iterator frame = motion[frameNumber].begin();
+    root->updateHierarchy(frame);
+}
+
+void ofxBvh::read() {
+    if (!root) {
+        cout << "No hierarchy to read." << endl;
         return;
     }
     
-    parseHierarchy(data.substr(HIERARCHY_BEGIN, MOTION_BEGIN));
-    parseMotion(data.substr(MOTION_BEGIN));
-    
-    currentFrame = frames[0];
-    
-    int index = 0;
-    updateJoint(index, currentFrame, root);
-    
-    frame_new = false;
+    vector<double>::iterator frame = motion[frameNumber].begin();
+    root->readHierarchy(frame);
 }
 
-void ofxBvh::unload()
-{
-    for (int i = 0; i < joints.size(); i++)
-        delete joints[i];
-    
-    joints.clear();
-    
-    root = NULL;
-    
-    frames.clear();
-    currentFrame.clear();
-    
-    num_frames = 0;
-    frame_time = 0;
-    
-    rate = 1;
-    play_head = 0;
-    playing = false;
-    loop = false;
-    
-    need_update = false;
+bool ofxBvh::isFrameNew() const {
+    return frameNew;
 }
 
-void ofxBvh::play()
-{
-    playing = true;
-}
-
-void ofxBvh::stop()
-{
-    playing = false;
-}
-
-bool ofxBvh::isPlaying() const
-{
-    return playing;
-}
-
-void ofxBvh::setLoop(bool yn)
-{
-    loop = yn;
-}
-
-bool ofxBvh::isLoop() const { return loop; }
-
-void ofxBvh::setRate(float rate)
-{
-    this->rate = rate;
-}
-
-void ofxBvh::updateJoint(int& index, const FrameData& frame_data, ofxBvhJoint *joint)
-{
-    ofVec3f translate;
-    ofQuaternion rotate;
-    
-    for (int i = 0; i < joint->channel_type.size(); i++)
-    {
-        float v = frame_data[index++];
-        ofxBvhJoint::CHANNEL t = joint->channel_type[i];
-        
-        if (t == ofxBvhJoint::X_POSITION)
-            translate.x = v;
-        else if (t == ofxBvhJoint::Y_POSITION)
-            translate.y = v;
-        else if (t == ofxBvhJoint::Z_POSITION)
-            translate.z = v;
-        else if (t == ofxBvhJoint::X_ROTATION)
-            rotate = ofQuaternion(v, ofVec3f(1, 0, 0)) * rotate;
-        else if (t == ofxBvhJoint::Y_ROTATION)
-            rotate = ofQuaternion(v, ofVec3f(0, 1, 0)) * rotate;
-        else if (t == ofxBvhJoint::Z_ROTATION)
-            rotate = ofQuaternion(v, ofVec3f(0, 0, 1)) * rotate;
+void ofxBvh::draw(bool drawNames) const {
+    if (!root) {
+        cout << "No hierarchy to draw." << endl;
+        return;
     }
-    
-    joint->matrix.makeIdentityMatrix();
-    joint->matrix.glTranslate(translate);
-    joint->matrix.glRotate(rotate);
-    
-    joint->global_matrix = joint->matrix;
-    joint->offset = translate;
-    
-    if (joint->parent)
-    {
-        joint->global_matrix.postMult(joint->parent->global_matrix);
-    }
-    
-    for (int i = 0; i < joint->children.size(); i++)
-    {
-        updateJoint(index, frame_data, joint->children[i]);
-    }
-}
-
-void ofxBvh::update()
-{
-    frame_new = false;
-    
-    if (playing && ofGetFrameNum() > 1)
-    {
-        int last_index = getFrame();
-        
-        play_head += ofGetLastFrameTime() * rate;
-        int index = getFrame();
-        
-        if (index != last_index)
-        {
-            need_update = true;
-            
-            if (index >= frames.size())
-            {
-                if (loop)
-                    play_head = 0;
-                else
-                    playing = false;
-            }
-            
-            if (play_head < 0)
-                play_head = 0;
-            
-            index = getFrame();
-            if(index >= frames.size()) index = frames.size() - 1; // index is larger than frames.size() when loop == false and index >= frames.size()
-            currentFrame = frames[index];
-            
-        }
-    }
-    
-    if (need_update)
-    {
-        need_update = false;
-        frame_new = true;
-        
-        int index = 0;
-        updateJoint(index, currentFrame, root);
-    }
-}
-
-void ofxBvh::draw()
-{
     ofPushStyle();
-    ofFill();
-    
-    for (int i = 0; i < joints.size(); i++)
-    {
-        ofxBvhJoint *o = joints[i];
-        glPushMatrix();
-        glMultMatrixf(o->getGlobalMatrix().getPtr());
-        
-        if (o->isSite())
-        {
-            ofSetColor(ofColor::yellow);
-            billboard();
-            ofDrawCircle(0, 0, 6);
-        }
-        else if (o->getChildren().size() == 1)
-        {
-            ofSetColor(ofColor::white);
-            billboard();
-            ofDrawCircle(0, 0, 2);
-        }
-        else if (o->getChildren().size() > 1)
-        {
-            if (o->isRoot())
-                ofSetColor(ofColor::cyan);
-            else
-                ofSetColor(ofColor::green);
-            
-            billboard();
-            ofDrawCircle(0, 0, 4);
-        }
-        
-        glPopMatrix();
-    }
-    
+    root->drawHierarchy(drawNames);
     ofPopStyle();
 }
 
-bool ofxBvh::isFrameNew() const
-{
-    return frame_new;
+string ofxBvh::info() const {
+    if (motion.empty()) {
+        return "No motion data.";
+    }
+    stringstream ss;
+    float duration = getDuration();
+    int minutes = (duration / 60);
+    int seconds = round(duration - (minutes * 60));
+    ss << getNumFrames() << " frames, " << motion[0].size() << " channels, "
+        << minutes << "m" << seconds << "s duration, @ "
+        << getFrameDuration() << "s or " << getFrameRate() << "fps";
+    return ss.str();
 }
 
-void ofxBvh::setFrame(int index)
-{
-    if (ofInRange(index, 0, frames.size()) && getFrame() != index)
-    {
-        currentFrame = frames[index];
-        play_head = (float)index * frame_time;
-        
-        need_update = true;
+unsigned int ofxBvh::getNumJoints() const {
+    return numJoints;
+}
+
+ofxBvhJoint* ofxBvh::getJoint(int index) {
+    int counter = 0;
+    return root->getJoint(index, counter);
+}
+
+ofxBvhJoint* ofxBvh::getJoint(const std::string& name) {
+    return root->getJoint(name);
+}
+
+void ofxBvh::play() {
+    playing = true;
+    startTime = ofGetElapsedTimef();
+}
+void ofxBvh::stop() {
+    playing = false;
+    startFrame = frameNumber;
+}
+void ofxBvh::setRate(float playRate) {
+    this->playRate = playRate;
+    startFrame = frameNumber;
+    startTime = ofGetElapsedTimef();
+}
+float ofxBvh::getRate() const {
+    return playRate;
+}
+void ofxBvh::togglePlaying() {
+    if (playing) {
+        stop();
+    } else {
+        play();
     }
 }
-
-int ofxBvh::getFrame() const
-{
-    return floor(play_head / frame_time);
+bool ofxBvh::isPlaying() const {
+    return playing;
+}
+void ofxBvh::setLoop(bool loop) {
+    this->loop = loop;
+}
+bool ofxBvh::isLoop() const {
+    return loop;
 }
 
-int ofxBvh::getNumFrames() const
-{
-    return num_frames;
+float ofxBvh::getDuration() const {
+    return getNumFrames() * frameTime;
+}
+unsigned int ofxBvh::getNumFrames() const {
+    return motion.size();
+}
+float ofxBvh::getFrameDuration() const {
+    return frameTime;
+}
+float ofxBvh::getFrameRate() const {
+    return 1 / frameTime;
+}
+unsigned int ofxBvh::getFrame() const {
+    return frameNumber;
+}
+float ofxBvh::getTime() const {
+    return frameNumber * frameTime;
+}
+float ofxBvh::getPosition() const {
+    // approximate
+    return float(frameNumber) / getNumFrames();
+}
+void ofxBvh::setFrame(unsigned int frameNumber) {
+    frameNumber %= getNumFrames();
+    startTime = ofGetElapsedTimef();
+    this->frameNumber = frameNumber;
+    startFrame = frameNumber;
+}
+void ofxBvh::setTime(float seconds) {
+    seconds = std::max(seconds, 0.f);
+    setFrame(seconds * getFrameRate());
+}
+void ofxBvh::setPosition(float ratio) {
+    setTime(ratio * getDuration());
 }
 
-void ofxBvh::setPosition(float pos)
-{
-    setFrame((float)frames.size() * pos);
-}
-
-float ofxBvh::getPosition() const
-{
-    return play_head / (float)frames.size();
-}
-
-float ofxBvh::getDuration() const
-{
-    return (float)frames.size() * frame_time;
-}
-
-void ofxBvh::parseHierarchy(const string& data)
-{
-    vector<string> tokens;
-    string token;
-    
-    total_channels = 0;
-    num_frames = 0;
-    frame_time = 0;
-    
-    for (int i = 0; i < data.size(); i++)
-    {
-        char c = data[i];
-        
-        if (isspace(c))
-        {
-            if (!token.empty()) tokens.push_back(token);
-            token.clear();
-        }
-        else
-        {
-            token.push_back(c);
-        }
+void ofxBvh::cropToFrame(unsigned int beginFrameNumber, unsigned int endFrameNumber) {
+    if (motion.empty()) {
+        cout << "No motion data." << endl;
+        return;
     }
     
-    int index = 0;
-    while (index < tokens.size())
-    {
-        //        cout << tokens[index] << endl;
-        if (tokens[index++] == "ROOT")
-        {
-            root = parseJoint(index, tokens, NULL);
-        }
-    }
+    // it's possible to keep playing/looping while cropping,
+    // but complicated to implement correctly... so just stop.
+    frameNumber = 0;
+    stop();
+    
+    motion.erase(motion.begin(), motion.begin() + beginFrameNumber);
+    motion.resize(endFrameNumber - beginFrameNumber);
 }
-
-ofxBvhJoint* ofxBvh::parseJoint(int& index, vector<string> &tokens, ofxBvhJoint *parent)
-{
-    string name = tokens[index++];
-    ofxBvhJoint *joint = new ofxBvhJoint(name, parent);
-    if (parent) parent->children.push_back(joint);
-    
-    joint->bvh = this;
-    
-    joints.push_back(joint);
-    jointMap[name] = joint;
-    
-    while (index < tokens.size())
-    {
-        string token = tokens[index++];
-        
-        if (token == "OFFSET")
-        {
-            joint->initial_offset.x = ofToFloat(tokens[index++]);
-            joint->initial_offset.y = ofToFloat(tokens[index++]);
-            joint->initial_offset.z = ofToFloat(tokens[index++]);
-            
-            joint->offset = joint->initial_offset;
-        }
-        else if (token == "CHANNELS")
-        {
-            int num = ofToInt(tokens[index++]);
-            
-            joint->channel_type.resize(num);
-            total_channels += num;
-            
-            for (int i = 0; i < num; i++)
-            {
-                string ch = tokens[index++];
-                
-                char axis = tolower(ch[0]);
-                char elem = tolower(ch[1]);
-                
-                if (elem == 'p')
-                {
-                    if (axis == 'x')
-                        joint->channel_type[i] = ofxBvhJoint::X_POSITION;
-                    else if (axis == 'y')
-                        joint->channel_type[i] = ofxBvhJoint::Y_POSITION;
-                    else if (axis == 'z')
-                        joint->channel_type[i] = ofxBvhJoint::Z_POSITION;
-                    else
-                    {
-                        ofLogError("ofxBvh", "invalid bvh format");
-                        return NULL;
-                    }
-                }
-                else if (elem == 'r')
-                {
-                    if (axis == 'x')
-                        joint->channel_type[i] = ofxBvhJoint::X_ROTATION;
-                    else if (axis == 'y')
-                        joint->channel_type[i] = ofxBvhJoint::Y_ROTATION;
-                    else if (axis == 'z')
-                        joint->channel_type[i] = ofxBvhJoint::Z_ROTATION;
-                    else
-                    {
-                        ofLogError("ofxBvh", "invalid bvh format");
-                        return NULL;
-                    }
-                }
-                else
-                {
-                    ofLogError("ofxBvh", "invalid bvh format");
-                    return NULL;
-                }
-            }
-        }
-        else if (token == "JOINT"
-                 || token == "End")
-        {
-            parseJoint(index, tokens, joint);
-        }
-        else if (token == "}")
-        {
-            break;
-        }
-    }
-    
-    return joint;
+void ofxBvh::cropToTime(float beginSeconds, float endSeconds) {
+    unsigned int beginFrameNumber = beginSeconds * getFrameRate();
+    unsigned int endFrameNumber = endSeconds * getFrameRate();
+    cropToFrame(beginFrameNumber, endFrameNumber);
 }
-
-void ofxBvh::parseMotion(const string& data)
-{
-    vector<string> lines = ofSplitString(data, "\n", true, true);
-    
-    int index = 0;
-    
-    while (index < lines.size())
-    {
-        string line = lines[index];
-        
-        if (line.empty())
-        {
-            index++;
-            continue;
-        }
-        
-        if (line.find("MOTION") != string::npos) {}
-        else if (line.find("Frames:") != string::npos)
-        {
-            num_frames = ofToInt(ofSplitString(line, ":")[1]);
-        }
-        else if (line.find("Frame Time:") != string::npos)
-        {
-            frame_time = ofToFloat(ofSplitString(line, ":")[1]);
-        }
-        else break;
-        
-        index++;
-    }
-    
-    while (index < lines.size())
-    {
-        string line = lines[index];
-        vector<string> channels = ofSplitString(line, " ");
-        
-        if (total_channels != channels.size())
-        {
-            ofLogWarning("ofxBvh") << "channel size mismatch: metadata says " << total_channels << ", but found " << channels.size();
-            return;
-        }
-        
-        char buf[64];
-        FrameData data;
-        for (int i = 0; i < channels.size(); i++)
-        {
-            float v;
-            sscanf(channels[i].c_str(), "%f", &v);
-            data.push_back(v);
-        }
-        
-        frames.push_back(data);
-        
-        index++;
-    }
-    
-    if (num_frames != frames.size())
-        ofLogWarning("ofxBvh") << "frame size mismatch: metadata says " << num_frames << ", but found " << frames.size();
-}
-
-const ofxBvhJoint* ofxBvh::getJoint(int index) const
-{
-    return joints.at(index);
-}
-
-const ofxBvhJoint* ofxBvh::getJoint(const string &name) const
-{
-    return jointMap.at(name);
-}
-
-static inline void billboard()
-{
-    GLfloat m[16];
-    glGetFloatv(GL_MODELVIEW_MATRIX, m);
-    
-    float inv_len;
-    
-    m[8] = -m[12];
-    m[9] = -m[13];
-    m[10] = -m[14];
-    inv_len = 1. / sqrt(m[8] * m[8] + m[9] * m[9] + m[10] * m[10]);
-    m[8] *= inv_len;
-    m[9] *= inv_len;
-    m[10] *= inv_len;
-    
-    m[0] = -m[14];
-    m[1] = 0.0;
-    m[2] = m[12];
-    inv_len = 1. / sqrt(m[0] * m[0] + m[1] * m[1] + m[2] * m[2]);
-    m[0] *= inv_len;
-    m[1] *= inv_len;
-    m[2] *= inv_len;
-    
-    m[4] = m[9] * m[2] - m[10] * m[1];
-    m[5] = m[10] * m[0] - m[8] * m[2];
-    m[6] = m[8] * m[1] - m[9] * m[0];
-    
-    glLoadMatrixf(m);
+void ofxBvh::cropToPosition(float beginRatio, float endRatio) {
+    float beginSeconds = beginRatio * getDuration();
+    float endSeconds = endRatio * getDuration();
+    cropToTime(beginSeconds, endSeconds);
 }

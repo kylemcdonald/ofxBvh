@@ -1,129 +1,88 @@
 #pragma once
 
 #include "ofVectorMath.h"
-#include <map>
 
-class ofxBvh;
-
-class ofxBvhJoint
-{
+class ofxBvhJoint {
     friend class ofxBvh;
     
+private:
+    int channels = 0;
+    std::string rotationOrder;
+    
+    void dumpHierarchy(std::ostream& output, std::string tabs="");
+    void updateHierarchy(std::vector<double>::const_iterator& frame, glm::mat4 global=glm::mat4());
+    void readHierarchy(std::vector<double>::iterator& frame);
+    void drawHierarchy(bool drawNames=false);
+    unsigned int countJoints();
+    ofxBvhJoint* getJoint(int target, int& counter);
+    ofxBvhJoint* getJoint(const std::string& target);
+    
 public:
-    
-    enum CHANNEL
-    {
-        X_ROTATION, Y_ROTATION, Z_ROTATION,
-        X_POSITION, Y_POSITION, Z_POSITION
-    };
-    
-    ofxBvhJoint(std::string name, ofxBvhJoint *parent) : name(name),  parent(parent) {}
-    
-    inline const std::string& getName() const { return name; }
-    inline const ofVec3f& getOffset() const { return offset; }
-    
-    inline const ofMatrix4x4& getMatrix() const { return matrix; }
-    inline const ofMatrix4x4& getGlobalMatrix() const { return global_matrix; }
-    
-    inline ofVec3f getPositionLocal() const { return matrix.getTranslation(); }
-    inline ofQuaternion getRotateLocal() const { return matrix.getRotate(); }
-    
-    inline ofVec3f getPosition() const { return global_matrix.getTranslation(); }
-    inline ofQuaternion getRotate() const { return global_matrix.getRotate(); }
-    
-    inline ofxBvhJoint* getParent() const { return parent; }
-    inline const std::vector<ofxBvhJoint*>& getChildren() const { return children; }
+    std::string name;
+    glm::vec3 offset;
+    glm::mat4 localMat, globalMat;
+    ofxBvhJoint* parent = nullptr;
+    std::vector<std::shared_ptr<ofxBvhJoint>> children;
     
     inline bool isSite() const { return children.empty(); }
     inline bool isRoot() const { return !parent; }
-    
-    inline ofxBvh* getBvh() const { return bvh; }
-    
-protected:
-    
-    std::string name;
-    ofVec3f initial_offset;
-    ofVec3f offset;
-    
-    ofMatrix4x4 matrix;
-    ofMatrix4x4 global_matrix;
-    
-    ofxBvh* bvh;
-    
-    std::vector<ofxBvhJoint*> children;
-    ofxBvhJoint* parent;
-    
-    std::vector<CHANNEL> channel_type;
 };
 
-class ofxBvh
-{
+class ofxBvh {
+private:
+    std::shared_ptr<ofxBvhJoint> root;
+    double frameTime = 0;
+    unsigned int numJoints = 0;
+    std::vector<std::vector<double>> motion;
+    
+    float playRate = 1;
+    float startTime = 0;
+    unsigned int startFrame = 0;
+    unsigned int frameNumber = 0;
+    bool playing = false;
+    bool loop = true;
+    bool frameNew = false;
+    
+    static void dumpMotion(std::ostream& output, float frameTime, const std::vector<std::vector<double>>& motion);
+    
 public:
     
-    ofxBvh() : root(NULL), total_channels(0), rate(1), loop(false),
-    playing(false), play_head(0), need_update(false) {}
-    
-    virtual ~ofxBvh();
-    
-    void load(std::string path);
-    void unload();
-    
-    void update();
-    void draw();
-    
+    void load(std::string filename);
+    void save(std::string filename) const;
+    void update(); // update joints using motion data
+    void read(); // update motion data using joints
     bool isFrameNew() const;
+    void draw(bool drawNames=false) const;
+    std::string info() const;
+    
+    unsigned int getNumJoints() const;
+    ofxBvhJoint* getJoint(int index);
+    ofxBvhJoint* getJoint(const std::string& name);
     
     void play();
     void stop();
+    void setRate(float playRate);
+    float getRate() const;
+    void togglePlaying();
     bool isPlaying() const;
     
-    void setLoop(bool yn);
+    void setLoop(bool loop);
     bool isLoop() const;
     
-    void setRate(float rate);
+    float getDuration() const; // in seconds
+    unsigned int getNumFrames() const; // total frame count
+    float getFrameDuration() const; // in seconds
+    float getFrameRate() const; // in frames per second
+    unsigned int getFrame() const;
+    float getTime() const; // current time in seconds
+    float getPosition() const; // current position 0-1
     
-    void setFrame(int index);
-    int getFrame() const;
-    int getNumFrames() const;
+    void setFrame(unsigned int frameNumber);
+    void setTime(float seconds); // set time in seconds
+    void setPosition(float ratio); // set position 0-1
     
-    void setPosition(float pos);
-    float getPosition() const;
-    
-    float getDuration() const;
-    
-    int getNumJoints() const { return joints.size(); }
-    const ofxBvhJoint* getJoint(int index) const;
-    const ofxBvhJoint* getJoint(const std::string &name) const;
-    
-protected:
-    
-    typedef std::vector<float> FrameData;
-    
-    int total_channels;
-    
-    ofxBvhJoint* root;
-    std::vector<ofxBvhJoint*> joints;
-    std::map<std::string, ofxBvhJoint*> jointMap;
-    
-    std::vector<FrameData> frames;
-    FrameData currentFrame;
-    
-    int num_frames;
-    float frame_time;
-    
-    float rate;
-    
-    bool playing;
-    float play_head;
-    
-    bool loop;
-    bool need_update;
-    bool frame_new;
-    
-    void parseHierarchy(const std::string& data);
-    ofxBvhJoint* parseJoint(int& index, std::vector<std::string> &tokens, ofxBvhJoint *parent);
-    void updateJoint(int& index, const FrameData& frame_data, ofxBvhJoint *joint);
-    
-    void parseMotion(const std::string& data);
-    
+    // cropping will cause playback to stop
+    void cropToFrame(unsigned int beginFrameNumber, unsigned int endFrameNumber);
+    void cropToTime(float beginSeconds, float endSeconds);
+    void cropToPosition(float beginRatio, float endRatio);
 };
