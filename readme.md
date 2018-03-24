@@ -16,7 +16,7 @@ Bad:
 
 ## Modifying matrices and raw data
 
-Motion data in a BVH files is a list of real numbers (`double` precision). ofxBvh converts this into local and global matrices like this. If you manually modify the `ofxBvhJoint::localMat`, you should call `ofxBvh::read()` then `ofxBvh::update()` to keep everything in sync. If you manually modify `ofxBvhJoint::raw` data, you should call `ofxBvh::readJointsRaw()` then `ofxBvh::update()` to keep everything in sync.
+Motion data in a BVH files is a list of real numbers (`double` precision). ofxBvh converts this into local and global matrices. If you manually modify the `ofxBvhJoint::localMat`, you should call `ofxBvh::read()` then `ofxBvh::update()` to keep everything in sync. If you manually modify `ofxBvhJoint::raw` data, you should call `ofxBvh::readJointsRaw()` then `ofxBvh::update()` to keep everything in sync.
 
 Converting from a file all the way to matrices happens like this:
 
