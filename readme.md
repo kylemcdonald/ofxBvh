@@ -16,21 +16,23 @@ Bad:
 
 ## Modifying matrices and raw data
 
-Motion data in a BVH files is a list of real numbers (`double` precision). ofxBvh converts this into local and global matrices. If you manually modify the `ofxBvhJoint::localMat`, you should call `ofxBvh::read()` then `ofxBvh::update()` to keep everything in sync. If you manually modify `ofxBvhJoint::raw` data, you should call `ofxBvh::readJointsRaw()` then `ofxBvh::update()` to keep everything in sync.
+Motion data in a BVH files is a list of real numbers (`double` precision). ofxBvh converts this into local and global matrices. If you manually modify the `ofxBvhJoint::localMat`, you should call `ofxBvh::read()` then `ofxBvh::update()` to keep everything in sync. If you manually modify `ofxBvhJoint::raw` data, you should call `ofxBvh::readJointsRaw()` then `ofxBvh::update()` to keep everything in sync. More thoroughly, there are four representations:
 
-Converting from a file all the way to matrices happens like this:
+1. `.bvh` file
+2. `ofxBvh::motion`
+3. `ofxBvhJoint::raw`
+4. `ofxBvhJoint::localMat`
 
-- `ofxBvh::load()`: read from a file to `vector<vector<double>> ofxBvh::motion` 
-- `ofxBvh::update()` calls two methods internally:
-	- `ofxBvh::updateJointsRaw()` calls `ofxBvhJoint::updateRaw()` on each joint, which splits `vector<vector<double>> ofxBvh::motion` into each `vector<double> ofxBvhJoint::raw`
-	- `ofxBvh::updateJointsMatrix()` calls `ofxBvhJoint::updateMatrix()` on each joint, which converts `vector<double> ofxBvhJoint::raw` into `ofxBvhJoint::localMat` and `ofxBvhJoint::globalMat`
+To convert:
 
-We can also convert the other direction, from matrices to a file:
-
-- `ofxBvh::read()` calls two methods internally:
-	- `ofxBvh::readJointsMatrix()` calls `ofxBvhJoint::readMatrix()` on each joint, which converts `ofxBvhJoint::localMat` into `vector<double> ofxBvhJoint::raw`
-	- `ofxBvh::readJointsRaw()` calls `ofxBvhJoint::readRaw()` on each joint, which joins each `vector<double> ofxBvhJoint::raw` into `vector<vector<double>> ofxBvh::motion`
-- `ofxBvh::write()`: writes from `vector<vector<double>> ofxBvh::motion` to a file
+- From 1 to 2: `ofxBvh::load()`
+- From 2 to 1: `ofxBvh::write()`
+- From 2 to 3 to 4: `ofxBvh::update()`
+- From 4 to 3 to 2: `ofxBvh::read()`
+- From 2 to 3: `ofxBvh::updateRaw()`
+- From 3 to 4: `ofxBvh::updateMatrix()`
+- From 4 to 3: `ofxBvh::readMatrix()`
+- From 3 to 2: `ofxBvh::readRaw()`
 
 ## Porting old ofxBvh code
 
