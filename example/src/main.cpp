@@ -38,6 +38,10 @@ public:
     void update() {
         for(auto& b : bvh) {
             b.update();
+            
+            // test that read + update work correctly
+//            b.read();
+//            b.update();
         }
     }
     void draw() {

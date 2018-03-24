@@ -13,14 +13,18 @@ private:
     std::vector<std::shared_ptr<ofxBvhJoint>> children;
     
     void dumpHierarchy(std::ostream& output, std::string tabs="");
-    void updateHierarchy(std::vector<double>::const_iterator& frame, glm::mat4 global=glm::mat4());
-    void readHierarchy(std::vector<double>::iterator& frame);
     void drawHierarchy(bool drawNames=false);
+    
+    void updateRaw(std::vector<double>::const_iterator& frame); // splits frame into raw
+    void updateMatrix(glm::mat4 global=glm::mat4()); // converts raw to localMat and globalMat
+    void readRaw(std::vector<double>::iterator& frame); // joins raw into frame
+    void readMatrix(); // converts localMat to raw
     
 public:
     std::string name;
     glm::vec3 offset;
     glm::mat4 localMat, globalMat;
+    std::vector<double> raw;
     
     inline ofxBvhJoint* getParent() const { return parent; }
     inline const std::vector<std::shared_ptr<ofxBvhJoint>>& getChildren() const { return children; }
@@ -46,13 +50,19 @@ private:
     bool frameNew = false;
     
     static void dumpMotion(std::ostream& output, float frameTime, const std::vector<std::vector<double>>& motion);
+    bool ready() const;
     
 public:
     
     void load(std::string filename);
     void save(std::string filename) const;
-    void update(); // update joints using motion data
-    void read(); // update motion data using joints
+    inline void update() { updatePlayTime(); updateJointsRaw(); updateJointsMatrix(); }
+    void updatePlayTime(); // update the frameNumber from the current time
+    void updateJointsRaw(); // write motion data into all joints raw data
+    void updateJointsMatrix(); // write joints raw data into joints matrices
+    inline void read() { readJointsMatrix(); readJointsRaw(); }
+    void readJointsMatrix(); // read all joint matrices into joints raw data
+    void readJointsRaw(); // read joints raw data into motion data
     bool isFrameNew() const;
     void draw(bool drawNames=false) const;
     std::string info() const;
@@ -83,7 +93,7 @@ public:
     void setPosition(float ratio); // set position 0-1
     
     // cropping will cause playback to stop
-    void cropToFrame(unsigned int beginFrameNumber, unsigned int endFrameNumber);
-    void cropToTime(float beginSeconds, float endSeconds);
-    void cropToPosition(float beginRatio, float endRatio);
+    void cropToFrame(unsigned int beginFrameNumber, unsigned int endFrameNumber=0);
+    void cropToTime(float beginSeconds, float endSeconds=0);
+    void cropToPosition(float beginRatio, float endRatio=0);
 };

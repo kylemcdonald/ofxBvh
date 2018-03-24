@@ -56,76 +56,6 @@ void ofxBvhJoint::dumpHierarchy(ostream& output, string tabs) {
     output << tabs << "}" << endl;
 }
 
-void ofxBvhJoint::updateHierarchy(vector<double>::const_iterator& frame, glm::mat4 global) {
-    glm::mat4 local;
-    
-    if (isSite()) {
-        local = glm::translate(local, offset);
-    } else {
-        if (channels == 6) {
-            glm::vec3 p;
-            p.x = *frame++;
-            p.y = *frame++;
-            p.z = *frame++;
-            local = glm::translate(local, p);
-        } else {
-            local = glm::translate(local, offset);
-        }
-        
-        for (char axis : rotationOrder) {
-            float angle = glm::radians(*frame++);
-            switch(axis) {
-                case 'X': local *= glm::eulerAngleX(angle); break;
-                case 'Y': local *= glm::eulerAngleY(angle); break;
-                case 'Z': local *= glm::eulerAngleZ(angle); break;
-            }
-        }
-    }
-    
-    global *= local;
-    localMat = local;
-    globalMat = global;
-    
-    for (auto child : children) {
-        child->updateHierarchy(frame, global);
-    }
-}
-
-void ofxBvhJoint::readHierarchy(std::vector<double>::iterator& frame) {
-    if (!isSite()) {
-        if (channels == 6) {
-            glm::vec3 translation = glm::vec3(localMat[3]);
-            *frame++ = translation.x;
-            *frame++ = translation.y;
-            *frame++ = translation.z;
-        }
-        
-        string order = rotationOrder;
-        int orderType;
-        // the EulOrd is "backwards" from the order rotations are applied
-        if (order == "YXZ") orderType = EulOrdZXYs;
-        else if (order == "ZXY") orderType = EulOrdYXZs;
-        else {
-            cout << "rotation order '" << order << "' untested, please add it" << endl;
-            return;
-        }
-        glm::vec3 euler = matToEuler(localMat, orderType);
-        for (char axis : order) {
-            float angle;
-            switch(axis) {
-                case 'X': angle = euler.x; break;
-                case 'Y': angle = euler.y; break;
-                case 'Z': angle = euler.z; break;
-            }
-            *frame++ = glm::degrees(angle);
-        }
-    }
-    
-    for (auto child : children) {
-        child->readHierarchy(frame);
-    }
-}
-
 void ofxBvhJoint::drawHierarchy(bool drawNames) {
     ofSetColor(ofColor::white);
     ofDrawLine(glm::vec3(), offset);
@@ -151,6 +81,97 @@ void ofxBvhJoint::drawHierarchy(bool drawNames) {
     ofPopMatrix();
 }
 
+void ofxBvhJoint::updateRaw(vector<double>::const_iterator& frame) {
+    raw.clear();
+    for (int channel = 0; channel < channels; channel++) {
+        raw.push_back(*frame++);
+    }
+    for (auto child : children) {
+        child->updateRaw(frame);
+    }
+}
+
+void ofxBvhJoint::updateMatrix(glm::mat4 global) {
+    vector<double>::iterator itr = raw.begin();
+    glm::mat4 local;
+    if (isSite()) {
+        local = glm::translate(local, offset);
+    } else {
+        if (channels == 6) {
+            glm::vec3 p;
+            p.x = *itr++;
+            p.y = *itr++;
+            p.z = *itr++;
+            local = glm::translate(local, p);
+        } else {
+            local = glm::translate(local, offset);
+        }
+        
+        for (char axis : rotationOrder) {
+            float angle = *itr++;
+            angle = glm::radians(angle);
+            switch(axis) {
+                case 'X': local *= glm::eulerAngleX(angle); break;
+                case 'Y': local *= glm::eulerAngleY(angle); break;
+                case 'Z': local *= glm::eulerAngleZ(angle); break;
+            }
+        }
+    }
+    
+    global *= local;
+    localMat = local;
+    globalMat = global;
+    
+    for (auto child : children) {
+        child->updateMatrix(global);
+    }
+}
+
+void ofxBvhJoint::readRaw(std::vector<double>::iterator& frame) {
+    for (auto channel : raw) {
+        *frame++ = channel;
+    }
+    for (auto child : children) {
+        child->readRaw(frame);
+    }
+}
+
+void ofxBvhJoint::readMatrix() {
+    vector<double>::iterator itr = raw.begin();
+    if (!isSite()) {
+        if (channels == 6) {
+            glm::vec3 translation = glm::vec3(localMat[3]);
+            *itr++ = translation.x;
+            *itr++ = translation.y;
+            *itr++ = translation.z;
+        }
+        
+        string order = rotationOrder;
+        int orderType;
+        // the EulOrd is "backwards" from the order rotations are applied
+        if (order == "YXZ") orderType = EulOrdZXYs;
+        else if (order == "ZXY") orderType = EulOrdYXZs;
+        else {
+            cout << "Rotation order '" << order << "' is not implemented. Please add it to ofxBvhJoint::readMatrix()" << endl;
+            return;
+        }
+        glm::vec3 euler = matToEuler(localMat, orderType);
+        for (char axis : order) {
+            float angle;
+            switch(axis) {
+                case 'X': angle = euler.x; break;
+                case 'Y': angle = euler.y; break;
+                case 'Z': angle = euler.z; break;
+            }
+            *itr++ = glm::degrees(angle);
+        }
+    }
+    
+    for (auto child : children) {
+        child->readMatrix();
+    }
+}
+
 void ofxBvh::dumpMotion(ostream& output, float frameTime, const vector<vector<double>>& motion) {
     output << "MOTION" << endl;
     output << "Frames:\t" << motion.size() << endl;
@@ -161,6 +182,18 @@ void ofxBvh::dumpMotion(ostream& output, float frameTime, const vector<vector<do
         }
         output << endl;
     }
+}
+
+bool ofxBvh::ready() const {
+    if (motion.empty()) {
+        cout << "Not ready: no motion to update." << endl;
+        false;
+    }
+    if (!root) {
+        cout << "Not ready: no hierarchy to read." << endl;
+        false;
+    }
+    return true;
 }
 
 void ofxBvh::load(string filename) {
@@ -256,11 +289,9 @@ void ofxBvh::save(string filename) const {
     ofs.close();
 }
 
-void ofxBvh::update() {
-    if (motion.empty()) {
-        cout << "No motion to update." << endl;
-        return;
-    }
+void ofxBvh::updatePlayTime() {
+    if (!ready()) return;
+    
     // update the time
     bool previousFrameNumber = frameNumber;
     if (playing) {
@@ -274,20 +305,28 @@ void ofxBvh::update() {
         }
     }
     frameNew = previousFrameNumber != frameNumber;
-    
-    // update the hierarchy
-    vector<double>::const_iterator frame = motion[frameNumber].begin();
-    root->updateHierarchy(frame);
 }
 
-void ofxBvh::read() {
-    if (!root) {
-        cout << "No hierarchy to read." << endl;
-        return;
-    }
-    
+void ofxBvh::updateJointsRaw() {
+    if (!ready()) return;
+    vector<double>::const_iterator frame = motion[frameNumber].begin();
+    root->updateRaw(frame);
+}
+
+void ofxBvh::updateJointsMatrix() {
+    if (!ready()) return;
+    root->updateMatrix();
+}
+
+void ofxBvh::readJointsMatrix() {
+    if (!ready()) return;
+    root->readMatrix();
+}
+
+void ofxBvh::readJointsRaw() {
+    if (!ready()) return;
     vector<double>::iterator frame = motion[frameNumber].begin();
-    root->readHierarchy(frame);
+    root->readRaw(frame);
 }
 
 bool ofxBvh::isFrameNew() const {
@@ -295,19 +334,14 @@ bool ofxBvh::isFrameNew() const {
 }
 
 void ofxBvh::draw(bool drawNames) const {
-    if (!root) {
-        cout << "No hierarchy to draw." << endl;
-        return;
-    }
+    if (!ready()) return;
     ofPushStyle();
     root->drawHierarchy(drawNames);
     ofPopStyle();
 }
 
 string ofxBvh::info() const {
-    if (motion.empty()) {
-        return "No motion data.";
-    }
+    if (!ready()) return "";
     stringstream ss;
     float duration = getDuration();
     int minutes = (duration / 60);
@@ -400,10 +434,7 @@ void ofxBvh::setPosition(float ratio) {
 }
 
 void ofxBvh::cropToFrame(unsigned int beginFrameNumber, unsigned int endFrameNumber) {
-    if (motion.empty()) {
-        cout << "No motion data." << endl;
-        return;
-    }
+    if (!ready()) return;
     
     // it's possible to keep playing/looping while cropping,
     // but complicated to implement correctly... so just stop.
@@ -411,7 +442,9 @@ void ofxBvh::cropToFrame(unsigned int beginFrameNumber, unsigned int endFrameNum
     stop();
     
     motion.erase(motion.begin(), motion.begin() + beginFrameNumber);
-    motion.resize(endFrameNumber - beginFrameNumber);
+    if(endFrameNumber > beginFrameNumber) {
+        motion.resize(endFrameNumber - beginFrameNumber);
+    }
 }
 void ofxBvh::cropToTime(float beginSeconds, float endSeconds) {
     unsigned int beginFrameNumber = beginSeconds * getFrameRate();
