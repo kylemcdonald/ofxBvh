@@ -38,7 +38,7 @@ To convert:
 
 `ofxBvh::unload()` is not needed anymore and has been removed.
 
-Some variables that are safe to read/write from have been made public, and methods for accessing them have been removed:
+Some variables that are safe to read/write from have been made public, and methods for accessing them have been removed. ofxBvh now returns raw glm objects instead of `ofVec3f` or `ofQuaternion`, but openFrameworks will make the conversion automatically.
 
 ```c++
 ofxBvh::getNumJoints(); // ofxBvh::getJoints().size()
@@ -47,8 +47,4 @@ ofxBvhJoint::getName(); // ofxBvhJoint::name
 ofxBvhJoint::getOffset(); // ofxBvhJoint::offset
 ofxBvhJoint::getMatrix(); // ofxBvhJoint::localMat
 ofxBvhJoint::getGlobalMatrix(); // ofxBvhJoint::globalMat
-ofxBvhJoint::getPositionLocal(); // glm::vec3(ofxBvhJoint::localMat[3])
-ofxBvhJoint::getRotationLocal(); // glm::quat(ofxBvhJoint::localMat)
-ofxBvhJoint::getPosition(); // glm::vec3(ofxBvhJoint::globalMat[3])
-ofxBvhJoint::getRotation(); // glm::quat(ofxBvhJoint::globalMat)
 ```

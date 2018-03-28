@@ -26,6 +26,11 @@ public:
     glm::mat4 localMat, globalMat;
     std::vector<double> raw;
     
+    inline glm::vec3 getPosition() const { return globalMat[3]; }
+    inline glm::vec3 getPositionLocal() const { return localMat[3]; }
+    inline glm::quat getRotation() const { return globalMat; }
+    inline glm::quat getRotationLocal() const { return localMat; }
+    
     inline ofxBvhJoint* getParent() const { return parent; }
     inline const std::vector<std::shared_ptr<ofxBvhJoint>>& getChildren() const { return children; }
     
