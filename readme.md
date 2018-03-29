@@ -36,6 +36,8 @@ To convert:
 
 ## Porting old ofxBvh code
 
+`ofxBvh::load()` has been replaced by a constructor. Instead of `bvh.load("...")` write `bvh = ofxBvh("...")`.
+
 `ofxBvh::unload()` is not needed anymore and has been removed.
 
 Some variables that are safe to read/write from have been made public, and methods for accessing them have been removed. ofxBvh now returns raw glm objects instead of `ofVec3f` or `ofQuaternion`, but openFrameworks will make the conversion automatically.

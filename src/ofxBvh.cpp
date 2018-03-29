@@ -196,19 +196,10 @@ bool ofxBvh::ready() const {
     return true;
 }
 
-void ofxBvh::load(string filename) {
+ofxBvh::ofxBvh(string filename) {
     string path = ofToDataPath(filename);
     
-    // reset variables
     ofxBvhJoint* cur = nullptr;
-    playRate = 1;
-    startTime = 0;
-    startFrame = 0;
-    frameNumber = 0;
-    playing = false;
-    loop = true;
-    frameNew = false;
-    
     ifstream ifs(path);
     string s;
     ifs >> s; // skip "HIERARCHY"

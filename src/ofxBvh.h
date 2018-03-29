@@ -59,7 +59,8 @@ private:
     
 public:
     
-    void load(std::string filename);
+    ofxBvh() {}
+    ofxBvh(std::string filename);
     void save(std::string filename) const;
     inline void update() { updatePlayTime(); updateJointsRaw(); updateJointsMatrix(); }
     void updatePlayTime(); // update the frameNumber from the current time
