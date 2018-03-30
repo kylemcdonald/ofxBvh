@@ -184,7 +184,7 @@ void ofxBvh::dumpMotion(ostream& output, float frameTime, const vector<vector<do
     }
 }
 
-bool ofxBvh::ready() const {
+bool ofxBvh::checkReady() const {
     if (motion.empty()) {
         cout << "Not ready: no motion to update." << endl;
         false;
@@ -194,6 +194,10 @@ bool ofxBvh::ready() const {
         false;
     }
     return true;
+}
+
+bool ofxBvh::ready() const {
+    return !motion.empty() && root;
 }
 
 ofxBvh::ofxBvh(string filename) {
@@ -281,7 +285,7 @@ void ofxBvh::save(string filename) const {
 }
 
 void ofxBvh::updatePlayTime() {
-    if (!ready()) return;
+    if (!checkReady()) return;
     
     // update the time
     bool previousFrameNumber = frameNumber;
@@ -299,23 +303,23 @@ void ofxBvh::updatePlayTime() {
 }
 
 void ofxBvh::updateJointsRaw() {
-    if (!ready()) return;
+    if (!checkReady()) return;
     vector<double>::const_iterator frame = motion[frameNumber].begin();
     root->updateRaw(frame);
 }
 
 void ofxBvh::updateJointsMatrix() {
-    if (!ready()) return;
+    if (!checkReady()) return;
     root->updateMatrix();
 }
 
 void ofxBvh::readJointsMatrix() {
-    if (!ready()) return;
+    if (!checkReady()) return;
     root->readMatrix();
 }
 
 void ofxBvh::readJointsRaw() {
-    if (!ready()) return;
+    if (!checkReady()) return;
     vector<double>::iterator frame = motion[frameNumber].begin();
     root->readRaw(frame);
 }
@@ -325,14 +329,14 @@ bool ofxBvh::isFrameNew() const {
 }
 
 void ofxBvh::draw(bool drawNames) const {
-    if (!ready()) return;
+    if (!checkReady()) return;
     ofPushStyle();
     root->drawHierarchy(drawNames);
     ofPopStyle();
 }
 
 string ofxBvh::info() const {
-    if (!ready()) return "";
+    if (!checkReady()) return "";
     stringstream ss;
     float duration = getDuration();
     int minutes = (duration / 60);
@@ -425,7 +429,7 @@ void ofxBvh::setPosition(float ratio) {
 }
 
 void ofxBvh::cropToFrame(unsigned int beginFrameNumber, unsigned int endFrameNumber) {
-    if (!ready()) return;
+    if (!checkReady()) return;
     
     // it's possible to keep playing/looping while cropping,
     // but complicated to implement correctly... so just stop.

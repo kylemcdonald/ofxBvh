@@ -39,7 +39,7 @@ public:
 };
 
 class ofxBvh {
-private:
+protected:
     std::shared_ptr<ofxBvhJoint> root;
     std::vector<ofxBvhJoint*> joints;
     std::map<std::string, ofxBvhJoint*> jointMap;
@@ -55,7 +55,7 @@ private:
     bool frameNew = false;
     
     static void dumpMotion(std::ostream& output, float frameTime, const std::vector<std::vector<double>>& motion);
-    bool ready() const;
+    bool checkReady() const;
     
 public:
     
@@ -70,6 +70,7 @@ public:
     void readJointsMatrix(); // read all joint matrices into joints raw data
     void readJointsRaw(); // read joints raw data into motion data
     bool isFrameNew() const;
+    bool ready() const;
     void draw(bool drawNames=false) const;
     std::string info() const;
     
