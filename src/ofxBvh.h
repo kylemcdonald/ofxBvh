@@ -16,20 +16,20 @@ private:
     void drawHierarchy(bool drawNames=false);
     
     void updateRaw(std::vector<double>::const_iterator& frame); // splits frame into raw
-    void updateMatrix(glm::mat4 global=glm::mat4()); // converts raw to localMat and globalMat
+    void updateMatrix(ofMatrix4x4 global=ofMatrix4x4()); // converts raw to localMat and globalMat
     void readRaw(std::vector<double>::iterator& frame); // joins raw into frame
     void readMatrix(); // converts localMat to raw
     
 public:
     std::string name;
-    glm::vec3 offset;
-    glm::mat4 localMat, globalMat;
+    ofVec3f offset;
+    ofMatrix4x4 localMat, globalMat;
     std::vector<double> raw;
     
-    inline glm::vec3 getPosition() const { return globalMat[3]; }
-    inline glm::vec3 getPositionLocal() const { return localMat[3]; }
-    inline glm::quat getRotation() const { return globalMat; }
-    inline glm::quat getRotationLocal() const { return localMat; }
+    inline ofVec3f getPosition() const { return globalMat.getTranslation(); }
+    inline ofVec3f getPositionLocal() const { return localMat.getTranslation(); }
+    inline ofQuaternion getRotation() const { return globalMat.getRotate(); }
+    inline ofQuaternion getRotationLocal() const { return localMat.getRotate(); }
     
     inline ofxBvhJoint* getParent() const { return parent; }
     inline const std::vector<std::shared_ptr<ofxBvhJoint>>& getChildren() const { return children; }

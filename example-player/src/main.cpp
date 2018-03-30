@@ -80,7 +80,7 @@ public:
         ofDrawBitmapString(bottomText.str(), 10, h-((bottomHeight+1)*12));
     }
     void keyPressed(int key) {
-        if (key == '\t') {
+        if (key == ' ') {
             if (bvh.isPlaying()) {
                 bvh.stop();
             } else {

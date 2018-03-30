@@ -4,15 +4,15 @@
 
 using namespace std;
 
-glm::vec3 matToEuler(glm::mat4 matrix, int order) {
+ofVec3f matToEuler(ofMatrix4x4 matrix, int order) {
     HMatrix hm;
     for(int i = 0; i < 4; i++) {
         for(int j = 0; j < 4; j++) {
-            hm[i][j] = matrix[j][i];
+            hm[i][j] = matrix._mat[j][i];
         }
     }
     EulerAngles result = Eul_FromHMatrix(hm, order);
-    glm::vec3 euler;
+    ofVec3f euler;
     euler[EulAxI(order)] = result.x;
     euler[EulAxJ(order)] = result.y;
     euler[EulAxK(order)] = result.z;
@@ -38,7 +38,7 @@ void ofxBvhJoint::dumpHierarchy(ostream& output, string tabs) {
     output << tabs << token << " " << name << endl;
     output << tabs << "{" << endl;
     string indented = tabs + "  "; // use two spaces for tabs
-    glm::vec3& p = offset;
+    ofVec3f& p = offset;
     output << indented << "OFFSET " << p.x << " " << p.y << " " << p.z << endl;
     if (!isSite()) {
         output << indented << "CHANNELS " << channels;
@@ -58,7 +58,7 @@ void ofxBvhJoint::dumpHierarchy(ostream& output, string tabs) {
 
 void ofxBvhJoint::drawHierarchy(bool drawNames) {
     ofSetColor(ofColor::white);
-    ofDrawLine(glm::vec3(), offset);
+    ofDrawLine(ofVec3f(), offset);
     
     ofPushMatrix();
     ofMultMatrix(localMat);
@@ -91,34 +91,33 @@ void ofxBvhJoint::updateRaw(vector<double>::const_iterator& frame) {
     }
 }
 
-void ofxBvhJoint::updateMatrix(glm::mat4 global) {
+void ofxBvhJoint::updateMatrix(ofMatrix4x4 global) {
     vector<double>::iterator itr = raw.begin();
-    glm::mat4 local;
+    ofMatrix4x4 local;
     if (isSite()) {
-        local = glm::translate(local, offset);
+        local.preMultTranslate(offset);
     } else {
         if (channels == 6) {
-            glm::vec3 p;
+            ofVec3f p;
             p.x = *itr++;
             p.y = *itr++;
             p.z = *itr++;
-            local = glm::translate(local, p);
+            local.preMultTranslate(p);
         } else {
-            local = glm::translate(local, offset);
+            local.preMultTranslate(offset);
         }
         
         for (char axis : rotationOrder) {
             float angle = *itr++;
-            angle = glm::radians(angle);
             switch(axis) {
-                case 'X': local *= glm::eulerAngleX(angle); break;
-                case 'Y': local *= glm::eulerAngleY(angle); break;
-                case 'Z': local *= glm::eulerAngleZ(angle); break;
+                case 'X': local.preMult(ofMatrix4x4::newRotationMatrix(angle, 1, 0, 0)); break;
+                case 'Y': local.preMult(ofMatrix4x4::newRotationMatrix(angle, 0, 1, 0)); break;
+                case 'Z': local.preMult(ofMatrix4x4::newRotationMatrix(angle, 0, 0, 1)); break;
             }
         }
     }
     
-    global *= local;
+    global.preMult(local);
     localMat = local;
     globalMat = global;
     
@@ -140,7 +139,7 @@ void ofxBvhJoint::readMatrix() {
     vector<double>::iterator itr = raw.begin();
     if (!isSite()) {
         if (channels == 6) {
-            glm::vec3 translation = glm::vec3(localMat[3]);
+            ofVec3f translation = localMat.getTranslation();
             *itr++ = translation.x;
             *itr++ = translation.y;
             *itr++ = translation.z;
@@ -155,7 +154,7 @@ void ofxBvhJoint::readMatrix() {
             cout << "Rotation order '" << order << "' is not implemented. Please add it to ofxBvhJoint::readMatrix()" << endl;
             return;
         }
-        glm::vec3 euler = matToEuler(localMat, orderType);
+        ofVec3f euler = matToEuler(localMat, orderType);
         for (char axis : order) {
             float angle;
             switch(axis) {
@@ -163,7 +162,7 @@ void ofxBvhJoint::readMatrix() {
                 case 'Y': angle = euler.y; break;
                 case 'Z': angle = euler.z; break;
             }
-            *itr++ = glm::degrees(angle);
+            *itr++ = ofRadToDeg(angle);
         }
     }
     
@@ -230,7 +229,7 @@ ofxBvh::ofxBvh(string filename) {
                 cur = cur->parent;
             }
         } else if (s == "OFFSET") {
-            glm::vec3& p = cur->offset;
+            ofVec3f& p = cur->offset;
             ifs >> p.x >> p.y >> p.z;
         } else if (s == "CHANNELS") {
             int& n = cur->channels;
