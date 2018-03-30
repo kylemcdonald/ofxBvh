@@ -1,151 +1,63 @@
 #include "ofMain.h"
 #include "ofxBvh.h"
 
-string help = "\
-f: toggle fullscreen\n\
-space: toggle playback\n\
-left: rewind 1 second\n\
-right: fast forward 1 second\n\
-up: speed up 10%\n\
-down: slow down 10%";
-
-float to_ml(float angle) {
-    float ml = (angle + 180) / 360;
-    ml = round(ml * 32) / 32; // quantize
-    return ml;
-}
-
-float from_ml(float ml) {
-    float angle = (ml * 360) - 180;
-    return angle;
-}
-
 class ofApp : public ofBaseApp {
 public:
-    vector<ofxBvh> bvh;
+    ofxBvh bvh;
     ofEasyCam cam;
     
     void setup() {
-        for(auto fn : vector<string>{
-//            "vicon.bvh",
-//            "perfume.bvh"
-            "erisa003.bvh"
-        }) {
-            bvh.emplace_back();
-            bvh.back().load(fn);
-            cout << bvh.back().info() << " / " << fn << endl;
-            
-            // crop files and check the results
-            bvh.back().cropToFrame(1200);
-//            bvh.back().cropToTime(2, 8);
-//            cout << bvh.back().info() << " / " << fn << endl;
-        }
-        
-        // save files
-//        bvh[0].save("vicon.bvh");
-//        bvh[1].save("perfume.bvh");
-        
-        for(auto& b : bvh) {
-            int n = b.getNumFrames();
-            for(int i = 0; i < n; i++) {
-                b.setFrame(i);
-//                cout << "before: " << endl;
-                b.update();
-//                b.updateJointsRaw();
-//                cout << "frame " << i << endl;
-                for(auto j : b.getJoints()) {
-                    if(j->isSite()) continue;
-                    vector<double>& r = j->raw;
-                    std::reverse(r.begin(), r.end());
-                    for(int k = 0; k < 3; k++) {
-                        r[k] = from_ml(to_ml(r[k]));
-                    }
-                    std::reverse(r.begin(), r.end());
-                }
-                b.readJointsRaw();
-//                cout << "after: " << endl;
-//                b.update();
-            }
-        }
-//        bvh[0].save("vicon-mod.bvh");
-//        bvh[1].save("perfume-mod.bvh");
-        
+        ofSetVerticalSync(true);
         ofBackground(0);
         ofNoFill();
+        
+        bvh = ofxBvh("vicon.bvh");
+        bvh.play();
+        
+        // crop files and check the results
+//        bvh.back().cropToFrame(1200);
+//        bvh.back().cropToTime(2, 8);
+        
+        // save files
+//        bvh.save("vicon-copy.bvh");
     }
     void update() {
-        for(auto& b : bvh) {
-            b.update();
-            
-            // test that read + update work correctly
-//            b.read();
-//            b.update();
-        }
+        bvh.update();
+        
+        // test that read + update work correctly
+//        b.read();
+//        b.update();
     }
     void draw() {
         cam.begin();
         ofScale(2,2,2);
-        float spacing = 200;
-        ofTranslate((bvh.size() - 1) * (-spacing / 2), -75);
-        for(auto& b : bvh) {
-            b.draw();
-            
-            // select joints by index
-            int n = b.getJoints().size();
-            for(int i = 0; i < n; i+=5) {
-                ofPushMatrix();
-                ofMultMatrix(b.getJoints()[i]->globalMat);
-                ofDrawBitmapString(ofToString(i), 0, 0);
-                ofPopMatrix();
-            }
-            
-            // select joints by name
-            ofxBvhJoint* head = b.getJoint("Head");
-            if (head != nullptr) {
-                head = head->getChildren()[0].get();
-                ofPushMatrix();
-                ofMultMatrix(head->globalMat);
-                ofDrawBitmapString("Head", 10, 0);
-                ofPopMatrix();
-            }
-            
-            ofTranslate(spacing, 0);
+        ofTranslate(0,-75,0);
+        
+        bvh.draw();
+    
+        // select joints by index
+        int n = bvh.getJoints().size();
+        for(int i = 0; i < n; i+=5) {
+            ofPushMatrix();
+            ofMultMatrix(bvh.getJoints()[i]->globalMat);
+            ofDrawBitmapString(ofToString(i), 0, 0);
+            ofPopMatrix();
         }
+        
+        // select joints by name
+        ofxBvhJoint* head = bvh.getJoint("Head");
+        if (head != nullptr) {
+            head = head->getChildren()[0].get();
+            ofPushMatrix();
+            ofMultMatrix(head->globalMat);
+            ofDrawBitmapString("Head", 10, 0);
+            ofPopMatrix();
+        }
+        
         cam.end();
         
         ofSetColor(255);
         ofDrawBitmapString(ofToString(round(ofGetFrameRate())), 10, 20);
-        ofDrawBitmapString(help, 10, 40);
-    }
-    void keyPressed(int key) {
-        if (key == 'f') {
-            ofToggleFullscreen();
-        }
-        if (key == ' ') {
-            for(auto& b : bvh) {
-                b.togglePlaying();
-            }
-        }
-        if (key == OF_KEY_LEFT) {
-            for(auto& b : bvh) {
-                b.setTime(b.getTime() - 1);
-            }
-        }
-        if (key == OF_KEY_RIGHT) {
-            for(auto& b : bvh) {
-                b.setTime(b.getTime() + 1);
-            }
-        }
-        if (key == OF_KEY_UP) {
-            for(auto& b : bvh) {
-                b.setRate(b.getRate() * 1.1);
-            }
-        }
-        if (key == OF_KEY_DOWN) {
-            for(auto& b : bvh) {
-                b.setRate(b.getRate() / 1.1);
-            }
-        }
     }
 };
 
