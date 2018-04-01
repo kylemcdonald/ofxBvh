@@ -4,27 +4,35 @@
 
 using namespace std;
 
-glm::vec3 matToEuler(glm::mat4 matrix, int order) {
+glm::vec3 matToEuler(glm::mat4 matrix, string order) {
+    // copy the glm::mat4 to the HMatrix
     HMatrix hm;
-    for(int i = 0; i < 4; i++) {
-        for(int j = 0; j < 4; j++) {
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
             hm[i][j] = matrix[j][i];
         }
     }
-    EulerAngles result = Eul_FromHMatrix(hm, order);
+    
+    // the EulOrd is "backwards" from the order rotations are applied
+    int type;
+    if (order == "YXZ") type = EulOrdZXYs;
+    else if (order == "ZXY") type = EulOrdYXZs;
+    else {
+        cout << "Rotation order '" << order << "' is not implemented. Please add it to matToEuler()" << endl;
+        return;
+    }
+    
+    // convert and store in the right components
+    EulerAngles result = Eul_FromHMatrix(hm, type);
     glm::vec3 euler;
-    euler[EulAxI(order)] = result.x;
-    euler[EulAxJ(order)] = result.y;
-    euler[EulAxK(order)] = result.z;
+    euler[EulAxI(type)] = result.x;
+    euler[EulAxJ(type)] = result.y;
+    euler[EulAxK(type)] = result.z;
     return euler;
 }
 
-// strip \r or \n from the end of a string
-string strip(const string& s) {
-    if (s.empty()) return s;
-    int i = s.size() - 1;
-    while (s[i] == '\r' || s[i] == '\n') i--;
-    return s.substr(0, i + 1);
+glm::vec3 quatToEuler(glm::quat quat, string order) {
+    return matToEuler(glm::mat4_cast(quat), order);
 }
 
 void ofxBvhJoint::dumpHierarchy(ostream& output, string tabs) {
@@ -127,7 +135,7 @@ void ofxBvhJoint::updateMatrix(glm::mat4 global) {
     }
 }
 
-void ofxBvhJoint::readRaw(std::vector<double>::iterator& frame) {
+void ofxBvhJoint::readRaw(vector<double>::iterator& frame) {
     for (auto channel : raw) {
         *frame++ = channel;
     }
@@ -140,23 +148,15 @@ void ofxBvhJoint::readMatrix() {
     vector<double>::iterator itr = raw.begin();
     if (!isSite()) {
         if (channels == 6) {
-            glm::vec3 translation = glm::vec3(localMat[3]);
+            glm::vec3 translation = getPositionLocal();
             *itr++ = translation.x;
             *itr++ = translation.y;
             *itr++ = translation.z;
         }
         
         string order = rotationOrder;
-        int orderType;
-        // the EulOrd is "backwards" from the order rotations are applied
-        if (order == "YXZ") orderType = EulOrdZXYs;
-        else if (order == "ZXY") orderType = EulOrdYXZs;
-        else {
-            cout << "Rotation order '" << order << "' is not implemented. Please add it to ofxBvhJoint::readMatrix()" << endl;
-            return;
-        }
-        glm::vec3 euler = matToEuler(localMat, orderType);
-        for (char axis : order) {
+        glm::vec3 euler = matToEuler(localMat, rotationOrder);
+        for (char axis : rotationOrder) {
             float angle;
             switch(axis) {
                 case 'X': angle = euler.x; break;
@@ -170,6 +170,75 @@ void ofxBvhJoint::readMatrix() {
     for (auto child : children) {
         child->readMatrix();
     }
+}
+
+void ofxBvhJoint::readOffsets(vector<double>::iterator& frame) {
+    if (!isSite()) {
+        // position in channels, read offset
+        if (channels == 6) {
+            *frame++ = offset.x;
+            *frame++ = offset.y;
+            *frame++ = offset.z;
+        }
+        // skip rotation
+        frame++;
+        frame++;
+        frame++;
+    }
+    
+    for (auto child : children) {
+        child->readOffsets(frame);
+    }
+}
+
+void ofxBvhJoint::setPositionRaw(const glm::vec3& position) {
+    if (channels == 3) {
+        cout << "No position channels to set." << endl;
+        return;
+    }
+    raw[0] = position.x;
+    raw[1] = position.y;
+    raw[2] = position.z;
+}
+
+void ofxBvhJoint::setRotationRaw(const glm::quat& rotation) {
+    glm::vec3 euler = quatToEuler(rotation, rotationOrder);
+    setRotationRaw(glm::degrees(euler));
+}
+
+void ofxBvhJoint::setRotationRaw(const glm::vec3& rotation) {
+    int i = channels - 3;
+    for (char axis : rotationOrder) {
+        switch(axis) {
+            case 'X': raw[i++] = rotation.x; break;
+            case 'Y': raw[i++] = rotation.y; break;
+            case 'Z': raw[i++] = rotation.z; break;
+        }
+    }
+}
+
+glm::vec3 ofxBvhJoint::getPositionRaw() const {
+    if (channels == 6) {
+        glm::vec3 position;
+        position.x = raw[0];
+        position.y = raw[1];
+        position.z = raw[2];
+        return position;
+    }
+    return glm::vec3();
+}
+
+glm::vec3 ofxBvhJoint::getRotationRaw() const {
+    glm::vec3 rotationRaw;
+    int i = raw.size() - 3;
+    for (char axis : rotationOrder) {
+        switch(axis) {
+            case 'X': rotationRaw.x = raw[i++]; break;
+            case 'Y': rotationRaw.y = raw[i++]; break;
+            case 'Z': rotationRaw.z = raw[i++]; break;
+        }
+    }
+    return rotationRaw;
 }
 
 void ofxBvh::dumpMotion(ostream& output, float frameTime, const vector<vector<double>>& motion) {
@@ -187,11 +256,11 @@ void ofxBvh::dumpMotion(ostream& output, float frameTime, const vector<vector<do
 bool ofxBvh::checkReady() const {
     if (motion.empty()) {
         cout << "Not ready: no motion to update." << endl;
-        false;
+        return false;
     }
     if (!root) {
         cout << "Not ready: no hierarchy to read." << endl;
-        false;
+        return false;
     }
     return true;
 }
@@ -207,7 +276,7 @@ ofxBvh::ofxBvh(string filename) {
     ifstream ifs(path);
     string s;
     ifs >> s; // skip "HIERARCHY"
-    int channels = 0;
+    channels = 0;
     while(true) {
         ifs >> s;
         if (s == "ROOT" || s == "JOINT" || s == "End") {
@@ -219,7 +288,7 @@ ofxBvh::ofxBvh(string filename) {
             cur = child;
             ifs.ignore(); // skip " "
             getline(ifs, cur->name);
-            cur->name = strip(cur->name);
+            cur->name = ofTrim(cur->name);
             joints.push_back(cur);
             if (s != "End") {
                 jointMap[cur->name] = cur;
@@ -342,8 +411,8 @@ string ofxBvh::info() const {
     int minutes = (duration / 60);
     int seconds = round(duration - (minutes * 60));
     ss << getNumFrames() << " frames, " << motion[0].size() << " channels, "
-        << minutes << "m" << seconds << "s duration, @ "
-        << getFrameDuration() << "s or " << getFrameRate() << "fps";
+    << minutes << "m" << seconds << "s duration, @ "
+    << getFrameDuration() << "s or " << getFrameRate() << "fps";
     return ss.str();
 }
 
@@ -411,6 +480,7 @@ float ofxBvh::getPosition() const {
     return float(frameNumber) / getNumFrames();
 }
 void ofxBvh::setFrame(unsigned int frameNumber) {
+    if (motion.empty()) return;
     if (loop) {
         frameNumber %= getNumFrames();
     } else {
@@ -426,6 +496,18 @@ void ofxBvh::setTime(float seconds) {
 }
 void ofxBvh::setPosition(float ratio) {
     setTime(ratio * getDuration());
+}
+
+void ofxBvh::clearFrames() {
+    frameNumber = 0;
+    stop();
+    motion.clear();
+}
+
+void ofxBvh::addFrame() {
+    motion.emplace_back(channels);
+    auto frame = motion.back().begin();
+    root->readOffsets(frame);
 }
 
 void ofxBvh::cropToFrame(unsigned int beginFrameNumber, unsigned int endFrameNumber) {

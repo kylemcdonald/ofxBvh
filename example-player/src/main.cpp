@@ -16,27 +16,59 @@ public:
     ofEasyCam cam;
     ofLight light;
     float height;
-    string filename = "";
+    vector<string> filenames;
+    string filename;
+    int nextFilenameIndex = 0;
+    unsigned int previousFrame = 0;
+    unsigned int skippedFrames = 0;
+    unsigned int totalFrames = 0;
     
     void setup() {
         ofBackground(0);
         ofSetVerticalSync(true);
     }
-    void dragged(ofDragInfo& drag) {
-        if (drag.files.empty()) return;
-        filename = drag.files[0];
-        if (ofFile(filename).getExtension() != "bvh") return;
+    void resetSkippedFrames() {
+        skippedFrames = 0;
+        totalFrames = 0;
+        previousFrame = bvh.getFrame();
+    }
+    void loadNextFile() {
+        if (filenames.empty()) return;
+        filename = filenames[nextFilenameIndex];
+        nextFilenameIndex = (nextFilenameIndex + 1) % filenames.size();
         bvh = ofxBvh(filename);
         bvh.update();
         height = getHeight(bvh);
         bvh.play();
         bvh.setLoop(true);
+        resetSkippedFrames();
+    }
+    void dragged(ofDragInfo& drag) {
+        if (drag.files.empty()) return;
+        vector<string> valid;
+        for (auto fn : drag.files) {
+            if (ofFile(fn).getExtension() != "bvh") continue;
+            valid.push_back(fn);
+        }
+        if (!valid.empty()) {
+            filenames = valid;
+            nextFilenameIndex = 0;
+            loadNextFile();
+        }
     }
     void update() {
         if (!bvh.ready()) return;
         if (!bvh.isPlaying()) {
             bvh.setPosition((float) mouseX / ofGetWidth());
+            resetSkippedFrames();
         }
+        unsigned int curFrame = bvh.getFrame();
+        if (curFrame != previousFrame && curFrame > previousFrame) {
+            unsigned int diff = curFrame - previousFrame;
+            skippedFrames += diff - 1;
+            totalFrames += diff;
+        }
+        previousFrame = curFrame;
         bvh.update();
     }
     void draw() {
@@ -60,10 +92,13 @@ public:
         ofDisableLighting();
         ofPopMatrix();
         cam.end();
+        
+        int skippedPercent = totalFrames > 0 ? (100 * skippedFrames) / totalFrames : 0;
         stringstream topText;
         topText
         << filename << endl
         << "Frame: " << bvh.getFrame() << "/" << bvh.getNumFrames() << " @ " << bvh.getFrameRate() << "fps" << endl
+        << "Skipped: " << skippedFrames << " / " << totalFrames << " = " << skippedPercent << "%" << endl
         << "Time: " << round(bvh.getTime()) << "s / " << round(bvh.getDuration()) << "s" << endl
         << "Position: " << bvh.getPosition() << endl
         << "Height: " << height << endl;
@@ -80,21 +115,26 @@ public:
         ofDrawBitmapString(bottomText.str(), 10, h-((bottomHeight+1)*12));
     }
     void keyPressed(int key) {
-        if (key == '\t') {
+        if (key == ' ') {
             if (bvh.isPlaying()) {
                 bvh.stop();
             } else {
                 bvh.play();
             }
         }
+        if (key == '\t') {
+            loadNextFile();
+        }
         if (key == 'f') {
             ofToggleFullscreen();
         }
         if (key == OF_KEY_LEFT) {
             bvh.setTime(bvh.getTime() - 1);
+            resetSkippedFrames();
         }
         if (key == OF_KEY_RIGHT) {
             bvh.setTime(bvh.getTime() + 1);
+            resetSkippedFrames();
         }
     }
 };

@@ -19,6 +19,7 @@ private:
     void updateMatrix(glm::mat4 global=glm::mat4()); // converts raw to localMat and globalMat
     void readRaw(std::vector<double>::iterator& frame); // joins raw into frame
     void readMatrix(); // converts localMat to raw
+    void readOffsets(std::vector<double>::iterator& frame); // read offsets into frame
     
 public:
     std::string name;
@@ -30,6 +31,12 @@ public:
     inline glm::vec3 getPositionLocal() const { return localMat[3]; }
     inline glm::quat getRotation() const { return globalMat; }
     inline glm::quat getRotationLocal() const { return localMat; }
+    
+    void setPositionRaw(const glm::vec3& position);
+    void setRotationRaw(const glm::quat& rotation);
+    void setRotationRaw(const glm::vec3& rotation);
+    glm::vec3 getPositionRaw() const;
+    glm::vec3 getRotationRaw() const;
     
     inline ofxBvhJoint* getParent() const { return parent; }
     inline const std::vector<std::shared_ptr<ofxBvhJoint>>& getChildren() const { return children; }
@@ -45,6 +52,7 @@ protected:
     std::map<std::string, ofxBvhJoint*> jointMap;
     double frameTime = 0;
     std::vector<std::vector<double>> motion;
+    unsigned int channels = 0;
     
     float playRate = 1;
     float startTime = 0;
@@ -100,6 +108,8 @@ public:
     void setPosition(float ratio); // set position 0-1
     
     // cropping will cause playback to stop
+    void clearFrames();
+    void addFrame();
     void cropToFrame(unsigned int beginFrameNumber, unsigned int endFrameNumber=0);
     void cropToTime(float beginSeconds, float endSeconds=0);
     void cropToPosition(float beginRatio, float endRatio=0);
