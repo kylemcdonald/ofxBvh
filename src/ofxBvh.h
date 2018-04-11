@@ -113,4 +113,6 @@ public:
     void cropToFrame(unsigned int beginFrameNumber, unsigned int endFrameNumber=0);
     void cropToTime(float beginSeconds, float endSeconds=0);
     void cropToPosition(float beginRatio, float endRatio=0);
+    void padBegin(unsigned int frames);
+    void padEnd(unsigned int frames);
 };

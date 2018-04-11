@@ -533,3 +533,11 @@ void ofxBvh::cropToPosition(float beginRatio, float endRatio) {
     float endSeconds = endRatio * getDuration();
     cropToTime(beginSeconds, endSeconds);
 }
+void ofxBvh::padBegin(unsigned int frames) {
+    vector<vector<double>> pad(frames, motion.front());
+    motion.insert(motion.begin(), pad.begin(), pad.end());
+}
+void ofxBvh::padEnd(unsigned int frames) {
+    vector<vector<double>> pad(frames, motion.back());
+    motion.insert(motion.end(), pad.begin(), pad.end());
+}
