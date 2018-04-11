@@ -25,6 +25,7 @@ public:
     
     void setup() {
         ofBackground(0);
+        ofSetFrameRate(60);
         ofSetVerticalSync(true);
     }
     void resetSkippedFrames() {
