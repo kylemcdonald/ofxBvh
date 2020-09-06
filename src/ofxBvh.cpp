@@ -357,7 +357,7 @@ void ofxBvh::updatePlayTime() {
     if (!checkReady()) return;
     
     // update the time
-    bool previousFrameNumber = frameNumber;
+    unsigned int previousFrameNumber = frameNumber;
     if (playing) {
         float elapsed = ofGetElapsedTimef() - startTime;
         int progress = elapsed * getFrameRate() * playRate;
